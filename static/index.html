@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plataforma de Pontos & Recompensas</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #f4f6f9; color: #333; display: flex; justify-content: center; padding: 20px; }
+        .container { max-width: 480px; width: 100%; background: #fff; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 25px; }
+        h1 { font-size: 22px; text-align: center; color: #1e293b; margin-bottom: 20px; }
+        .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-bottom: 20px; }
+        .card h2 { font-size: 16px; color: #0f172a; margin-bottom: 12px; }
+        .field { margin-bottom: 12px; }
+        label { display: block; font-size: 13px; color: #64748b; margin-bottom: 4px; }
+        input { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; outline: none; }
+        input:focus { border-color: #2563eb; }
+        button { width: 100%; padding: 12px; background-color: #2563eb; color: #fff; border: none; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; transition: background 0.2s; margin-top: 5px; }
+        button:hover { background-color: #1d4ed8; }
+        .btn-saque { background-color: #059669; }
+        .btn-saque:hover { background-color: #047857; }
+        .saldo-box { text-align: center; padding: 15px; background: #eff6ff; border-radius: 8px; border: 1px solid #bfdbfe; margin-bottom: 15px; }
+        .saldo-pontos { font-size: 28px; font-weight: bold; color: #1e40af; }
+        .saldo-reais { font-size: 14px; color: #3b82f6; margin-top: 4px; }
+        .qr-code-container { text-align: center; margin-top: 15px; display: none; }
+        .qr-code-container img { max-width: 200px; border-radius: 8px; border: 1px solid #ddd; }
+        .pix-copy { font-size: 11px; word-break: break-all; background: #e2e8f0; padding: 8px; border-radius: 4px; margin-top: 10px; }
+        .status-msg { margin-top: 10px; font-size: 13px; text-align: center; font-weight: 500; }
+        .sucesso { color: #16a34a; }
+        .erro { color: #dc2626; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🏆 Pontos & Recompensas</h1>
+
+    <!-- PAINEL DE SALDO LOCAL -->
+    <div class="card">
+        <h2>Minha Carteira</h2>
+        <div class="field">
+            <label for="cpf-consulta">Digite seu CPF:</label>
+            <input type="text" id="cpf-consulta" placeholder="000.000.000-00">
+        </div>
+        <button onclick="consultarSaldo()">Consultar Saldo</button>
+
+        <div class="saldo-box" id="saldo-box" style="display: none; margin-top: 15px;">
+            <div class="saldo-pontos" id="val-pontos">0.0 pts</div>
+            <div class="saldo-reais" id="val-reais">Equivalente a R$ 0,00</div>
+        </div>
+    </div>
+
+    <!-- PAINEL DE DEPÓSITO VIA PIX (ASAAS) -->
+    <div class="card">
+        <h2>Adicionar Pontos (Pix)</h2>
+        <div class="field">
+            <label for="dep-valor">Valor em Reais (Mínimo R$ 5,00):</label>
+            <input type="number" id="dep-valor" placeholder="5.00" step="1.00" min="5.00">
+        </div>
+        <button onclick="gerarPix()">Gerar QR Code Pix</button>
+
+        <div class="qr-code-container" id="qr-container">
+            <p style="font-size: 13px; color: #475569; margin-bottom: 8px;">Escaneie para pagar:</p>
+            <img id="qr-code-img" src="" alt="QR Code Pix">
+            <p style="font-size: 12px; margin-top: 8px;">Ou use o Pix Copia e Cola:</p>
+            <div class="pix-copy" id="pix-copy-text"></div>
+        </div>
+        <div id="dep-status" class="status-msg"></div>
+    </div>
+
+    <!-- PAINEL DE SAQUE / RESGATE INTERNO -->
+    <div class="card">
+        <h2>Resgatar / Sacar Pontos</h2>
+        <div class="field">
+            <label for="saque-pontos">Quantidade de Pontos:</label>
+            <input type="number" id="saque-pontos" placeholder="10">
+        </div>
+        <div class="field">
+            <label for="saque-pix">Chave Pix para Recebimento:</label>
+            <input type="text" id="saque-pix" placeholder="E-mail, CPF ou Telefone">
+        </div>
+        <button class="btn-saque" onclick="solicitarSaque()">Confirmar Resgate</button>
+        <div id="saque-status" class="status-msg"></div>
+    </div>
+</div>
+
+<script>
+    async function consultarSaldo() {
+        const cpf = document.getElementById('cpf-consulta').value.trim();
+        if (!cpf) return alert("Digite o CPF para consultar.");
+
+        try {
+            const res = await fetch(`/api/saldo/${cpf}`);
+            const data = await res.json();
+
+            document.getElementById('saldo-box').style.display = 'block';
+            document.getElementById('val-pontos').innerText = `${data.pontos.toFixed(1)} pts`;
+            document.getElementById('val-reais').innerText = `Equivalente a R$ ${data.valor_em_reais.toFixed(2).replace('.', ',')}`;
+        } catch (e) {
+            alert("Erro ao consultar saldo.");
+        }
+    }
+
+    async function gerarPix() {
+        const cpf = document.getElementById('cpf-consulta').value.trim();
+        const valor = parseFloat(document.getElementById('dep-valor').value);
+        const statusDiv = document.getElementById('dep-status');
+        const qrContainer = document.getElementById('qr-container');
+
+        if (!cpf) return alert("Por favor, preencha o CPF na seção 'Minha Carteira' primeiro.");
+        if (isNaN(valor) || valor < 5.0) return alert("O valor mínimo para depósito Pix é R$ 5,00.");
+
+        statusDiv.innerText = "Gerando Pix...";
+        statusDiv.className = "status-msg";
+
+        try {
+            const res = await fetch('/api/deposito', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cpf: cpf, valor: valor })
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                document.getElementById('qr-code-img').src = `data:image/png;base64,${data.qr_code_base64}`;
+                document.getElementById('pix-copy-text').innerText = data.copy_paste;
+                qrContainer.style.display = 'block';
+                statusDiv.innerText = "QR Code gerado com sucesso! Pague no seu banco.";
+                statusDiv.className = "status-msg sucesso";
+            } else {
+                statusDiv.innerText = data.detail || "Erro ao gerar cobrança.";
+                statusDiv.className = "status-msg erro";
+            }
+        } catch (e) {
+            statusDiv.innerText = "Erro na comunicação com o servidor.";
+            statusDiv.className = "status-msg erro";
+        }
+    }
+
+    async function solicitarSaque() {
+        const cpf = document.getElementById('cpf-consulta').value.trim();
+        const pontos = parseFloat(document.getElementById('saque-pontos').value);
+        const chavePix = document.getElementById('saque-pix').value.trim();
+        const statusDiv = document.getElementById('saque-status');
+
+        if (!cpf) return alert("Por favor, preencha o CPF na seção 'Minha Carteira' primeiro.");
+        if (isNaN(pontos) || pontos <= 0) return alert("Informe uma quantidade válida de pontos.");
+        if (!chavePix) return alert("Informe a chave Pix de destino.");
+
+        statusDiv.innerText = "Processando resgate...";
+        statusDiv.className = "status-msg";
+
+        try {
+            const res = await fetch('/api/saque', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cpf: cpf, pontos: pontos, chave_pix: chavePix })
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                statusDiv.innerText = data.mensagem;
+                statusDiv.className = "status-msg sucesso";
+                consultarSaldo(); // Atualiza a exibição de saldo na tela
+            } else {
+                statusDiv.innerText = data.detail || "Erro ao solicitar resgate.";
+                statusDiv.className = "status-msg erro";
+            }
+        } catch (e) {
+            statusDiv.innerText = "Erro na comunicação com o servidor.";
+            statusDiv.className = "status-msg erro";
+        }
+    }
+</script>
+
+</body>
+</html>

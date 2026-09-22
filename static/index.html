@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plataforma de Pontos & Recompensas</title>
+    <title>Plataforma Tap-to-Earn & Recompensas</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         body { background-color: #f4f6f9; color: #333; display: flex; justify-content: center; padding: 20px; }
@@ -15,13 +15,16 @@
         label { display: block; font-size: 13px; color: #64748b; margin-bottom: 4px; }
         input { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; outline: none; }
         input:focus { border-color: #2563eb; }
-        button { width: 100%; padding: 12px; background-color: #2563eb; color: #fff; border: none; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; transition: background 0.2s; margin-top: 5px; }
+        button { width: 100%; padding: 12px; background-color: #2563eb; color: #fff; border: none; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; transition: transform 0.1s, background 0.2s; margin-top: 5px; }
         button:hover { background-color: #1d4ed8; }
+        button:active { transform: scale(0.98); }
+        .btn-clicker { background-color: #8b5cf6; padding: 18px; font-size: 16px; border-radius: 50px; }
+        .btn-clicker:hover { background-color: #7c3aed; }
         .btn-saque { background-color: #059669; }
         .btn-saque:hover { background-color: #047857; }
         .saldo-box { text-align: center; padding: 15px; background: #eff6ff; border-radius: 8px; border: 1px solid #bfdbfe; margin-bottom: 15px; }
         .saldo-pontos { font-size: 28px; font-weight: bold; color: #1e40af; }
-        .saldo-reais { font-size: 14px; color: #3b82f6; margin-top: 4px; }
+        .saldo-reais { font-size: 15px; font-weight: 600; color: #16a34a; margin-top: 4px; }
         .qr-code-container { text-align: center; margin-top: 15px; display: none; }
         .qr-code-container img { max-width: 200px; border-radius: 8px; border: 1px solid #ddd; }
         .pix-copy { font-size: 11px; word-break: break-all; background: #e2e8f0; padding: 8px; border-radius: 4px; margin-top: 10px; }
@@ -33,9 +36,9 @@
 <body>
 
 <div class="container">
-    <h1>🏆 Pontos & Recompensas</h1>
+    <h1>⚡ Tap-to-Earn & Recompensas</h1>
 
-    <!-- PAINEL DE SALDO LOCAL -->
+    <!-- CARTEIRA E SALDO -->
     <div class="card">
         <h2>Minha Carteira</h2>
         <div class="field">
@@ -50,9 +53,18 @@
         </div>
     </div>
 
-    <!-- PAINEL DE DEPÓSITO VIA PIX (ASAAS) -->
+    <!-- ÁREA DO JOGO (TAP-TO-EARN) -->
+    <div class="card" style="text-align: center;">
+        <h2>🎮 Ganhar Pontos por Clique</h2>
+        <p style="font-size: 12px; color: #64748b; margin-bottom: 15px;">
+            Clique para aumentar seus pontos. O servidor converte automaticamente em Reais!
+        </p>
+        <button class="btn-clicker" onclick="enviarClique()">⚡ CLICAR (+1 PONTO)</button>
+    </div>
+
+    <!-- ADICIONAR CRÉDITO VIA PIX -->
     <div class="card">
-        <h2>Adicionar Pontos (Pix)</h2>
+        <h2>Adicionar Crédito (Pix)</h2>
         <div class="field">
             <label for="dep-valor">Valor em Reais (Mínimo R$ 5,00):</label>
             <input type="number" id="dep-valor" placeholder="5.00" step="1.00" min="5.00">
@@ -62,21 +74,21 @@
         <div class="qr-code-container" id="qr-container">
             <p style="font-size: 13px; color: #475569; margin-bottom: 8px;">Escaneie para pagar:</p>
             <img id="qr-code-img" src="" alt="QR Code Pix">
-            <p style="font-size: 12px; margin-top: 8px;">Ou use o Pix Copia e Cola:</p>
+            <p style="font-size: 12px; margin-top: 8px;">Pix Copia e Cola:</p>
             <div class="pix-copy" id="pix-copy-text"></div>
         </div>
         <div id="dep-status" class="status-msg"></div>
     </div>
 
-    <!-- PAINEL DE SAQUE / RESGATE INTERNO -->
+    <!-- SOLICITAR RESGATE / SAQUE -->
     <div class="card">
-        <h2>Resgatar / Sacar Pontos</h2>
+        <h2>Resgatar / Sacar Saldo</h2>
         <div class="field">
             <label for="saque-pontos">Quantidade de Pontos:</label>
             <input type="number" id="saque-pontos" placeholder="10">
         </div>
         <div class="field">
-            <label for="saque-pix">Chave Pix para Recebimento:</label>
+            <label for="saque-pix">Chave Pix de Destino:</label>
             <input type="text" id="saque-pix" placeholder="E-mail, CPF ou Telefone">
         </div>
         <button class="btn-saque" onclick="solicitarSaque()">Confirmar Resgate</button>
@@ -101,14 +113,38 @@
         }
     }
 
+    async function enviarClique() {
+        const cpf = document.getElementById('cpf-consulta').value.trim();
+        if (!cpf) return alert("Por favor, digite o CPF na seção 'Minha Carteira' para jogar.");
+
+        try {
+            const res = await fetch('/api/clique', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ cpf: cpf, quantidade_cliques: 1 })
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                document.getElementById('saldo-box').style.display = 'block';
+                document.getElementById('val-pontos').innerText = `${data.novos_pontos.toFixed(1)} pts`;
+                document.getElementById('val-reais').innerText = `Equivalente a R$ ${data.novo_valor_reais.toFixed(2).replace('.', ',')}`;
+            } else {
+                alert(data.detail || "Erro ao registrar clique.");
+            }
+        } catch (e) {
+            console.error("Erro no clique:", e);
+        }
+    }
+
     async function gerarPix() {
         const cpf = document.getElementById('cpf-consulta').value.trim();
         const valor = parseFloat(document.getElementById('dep-valor').value);
         const statusDiv = document.getElementById('dep-status');
         const qrContainer = document.getElementById('qr-container');
 
-        if (!cpf) return alert("Por favor, preencha o CPF na seção 'Minha Carteira' primeiro.");
-        if (isNaN(valor) || valor < 5.0) return alert("O valor mínimo para depósito Pix é R$ 5,00.");
+        if (!cpf) return alert("Preencha o CPF na seção 'Minha Carteira' primeiro.");
+        if (isNaN(valor) || valor < 5.0) return alert("O valor mínimo é R$ 5,00.");
 
         statusDiv.innerText = "Gerando Pix...";
         statusDiv.className = "status-msg";
@@ -125,14 +161,14 @@
                 document.getElementById('qr-code-img').src = `data:image/png;base64,${data.qr_code_base64}`;
                 document.getElementById('pix-copy-text').innerText = data.copy_paste;
                 qrContainer.style.display = 'block';
-                statusDiv.innerText = "QR Code gerado com sucesso! Pague no seu banco.";
+                statusDiv.innerText = "QR Code gerado com sucesso!";
                 statusDiv.className = "status-msg sucesso";
             } else {
                 statusDiv.innerText = data.detail || "Erro ao gerar cobrança.";
                 statusDiv.className = "status-msg erro";
             }
         } catch (e) {
-            statusDiv.innerText = "Erro na comunicação com o servidor.";
+            statusDiv.innerText = "Erro de conexão com o servidor.";
             statusDiv.className = "status-msg erro";
         }
     }
@@ -143,7 +179,7 @@
         const chavePix = document.getElementById('saque-pix').value.trim();
         const statusDiv = document.getElementById('saque-status');
 
-        if (!cpf) return alert("Por favor, preencha o CPF na seção 'Minha Carteira' primeiro.");
+        if (!cpf) return alert("Preencha o CPF na seção 'Minha Carteira' primeiro.");
         if (isNaN(pontos) || pontos <= 0) return alert("Informe uma quantidade válida de pontos.");
         if (!chavePix) return alert("Informe a chave Pix de destino.");
 
@@ -161,13 +197,13 @@
             if (res.ok) {
                 statusDiv.innerText = data.mensagem;
                 statusDiv.className = "status-msg sucesso";
-                consultarSaldo(); // Atualiza a exibição de saldo na tela
+                consultarSaldo();
             } else {
                 statusDiv.innerText = data.detail || "Erro ao solicitar resgate.";
                 statusDiv.className = "status-msg erro";
             }
         } catch (e) {
-            statusDiv.innerText = "Erro na comunicação com o servidor.";
+            statusDiv.innerText = "Erro de conexão com o servidor.";
             statusDiv.className = "status-msg erro";
         }
     }
